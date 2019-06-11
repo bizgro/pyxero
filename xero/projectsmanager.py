@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import os
 import requests
 import six
+import json
 
 from six.moves.urllib.parse import parse_qs
 
@@ -12,6 +13,7 @@ from .exceptions import (
     XeroNotAvailable, XeroNotFound, XeroNotImplemented, XeroRateLimitExceeded,
     XeroUnauthorized, XeroUnsupportedMediaType
 )
+from .utils import singular, isplural, json_load_object_hook
 
 
 class ProjectsManager(object):
@@ -108,7 +110,15 @@ class ProjectsManager(object):
 
 		if isinstance(result, dict) and self.singular in result:
 			return result[self.singular]
-		
+
+	def _parse_api_response(self, response, resource_name):
+		data = json.loads(response.text, object_hook=json_load_object_hook)
+		#assert data['Status'] == 'OK', "Expected the API to say OK but received %s" % data['Status']
+		try:
+			return data[resource_name]
+		except KeyError:
+			return data	
+					
 	def _get_data(self, func):
 		""" This is the decorator for our DECORATED_METHODS.
 		Each of the decorated methods must return:
@@ -136,11 +146,9 @@ class ProjectsManager(object):
 					params=params, timeout=timeout)
 
 			if response.status_code == 200:
-				if response.headers['content-type'].startswith('application/json'):
-					return response.json()
-				else:
-					# return a byte string without doing any Unicode conversions
-					return response.content
+				if not response.headers['content-type'].startswith('application/json'):
+					return response.content				
+				return self._parse_api_response(response, self.name)
 
 			elif response.status_code == 204:
 				return response.content
@@ -215,13 +223,6 @@ class ProjectsManager(object):
 	def _get_content(self, fileId):
 		uri = '/'.join([self.base_url, self.name, fileId, "Content"])
 		return uri, {}, 'get', None, None, False
-
-	def prepare_filtering_date(self, val):
-		if isinstance(val, datetime):
-			val = val.strftime('%a, %d %b %Y %H:%M:%S GMT')
-		else:
-			val = '"%s"' % val
-		return {'If-Modified-Since': val}
 	
 	def _filter(self, **kwargs):
 		params = {}
@@ -229,69 +230,10 @@ class ProjectsManager(object):
 		uri = '/'.join([self.base_url, self.name])
 
 		if kwargs:
-			if 'since' in kwargs:
-				val = kwargs['since']
-				headers = self.prepare_filtering_date(val)
-				del kwargs['since']
-
-			def get_filter_params(key, value):
-				last_key = key.split('_')[-1]
-				if last_key.upper().endswith('ID'):
-					return 'Guid("%s")' % six.text_type(value)
-				if key in self.BOOLEAN_FIELDS:
-					return 'true' if value else 'false'
-				elif key in self.DATE_FIELDS:
-					return 'DateTime(%s,%s,%s)' % (value.year, value.month, value.day)
-				elif key in self.DATETIME_FIELDS:
-					return value.isoformat()
-				else:
-					return '"%s"' % six.text_type(value)
-
-			def generate_param(key, value):
-				parts = key.split("__")
-				field = key.replace('_', '.')
-				fmt = '%s==%s'
-				if len(parts) == 2:
-					# support filters:
-					# Name__Contains=John becomes Name.Contains("John")
-					if parts[1] in ["contains", "startswith", "endswith"]:
-						field = parts[0]
-						fmt = ''.join(['%s.', parts[1], '(%s)'])
-					elif parts[1] in self.OPERATOR_MAPPINGS:
-						field = parts[0]
-						key = field
-						fmt = '%s' + self.OPERATOR_MAPPINGS[parts[1]] + '%s'
-					elif parts[1] in ["isnull"]:
-						sign = '=' if value else '!'
-						return '%s%s=null' % (parts[0], sign)
-					field = field.replace('_', '.')
-				return fmt % (
-					field,
-					get_filter_params(key, value)
-				)
-
-			# Move any known parameter names to the query string
-			KNOWN_PARAMETERS = ['order', 'offset', 'page', 'includeArchived']
-			for param in KNOWN_PARAMETERS:
-				if param in kwargs:
-					params[param] = kwargs.pop(param)
-
-			filter_params = []
-
-			if 'raw' in kwargs:
-				raw = kwargs.pop('raw')
-				filter_params.append(raw)
-
 			# Treat any remaining arguments as filter predicates
 			# Xero will break if you search without a check for null in the first position:
 			# http://developer.xero.com/documentation/getting-started/http-requests-and-responses/#title3
-			sortedkwargs = sorted(six.iteritems(kwargs),
-				key=lambda item: -1 if 'isnull' in item[0] else 0)
-			for key, value in sortedkwargs:
-				filter_params.append(generate_param(key, value))
-
-			if filter_params:
-				params['where'] = '&&'.join(filter_params)
+			params = sorted(six.iteritems(kwargs), key=lambda item: -1 if 'isnull' in item[0] else 0)
 
 		return uri, params, 'get', None, headers, False
 		
