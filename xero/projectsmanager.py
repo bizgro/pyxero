@@ -25,6 +25,7 @@ class ProjectsManager(object):
 		'save',
 		'delete',
 		'add_time',
+		'add_task',
 		'get_tasks',
 		'get_content',
 		)
@@ -34,45 +35,6 @@ class ProjectsManager(object):
 		'FullyPaidOnDate',
 		'DateTimeUTC',
 		'CreatedDateUTC'
-	)
-	DATE_FIELDS = (
-		'DueDate',
-		'Date',
-		'PaymentDate',
-		'StartDate',
-		'EndDate',
-		'PeriodLockDate',
-		'DateOfBirth',
-		'OpeningBalanceDate',
-		'PaymentDueDate',
-		'ReportingDate',
-		'DeliveryDate',
-		'ExpectedArrivalDate',
-	)
-	BOOLEAN_FIELDS = (
-		'IsSupplier',
-		'IsCustomer',
-		'IsDemoCompany',
-		'PaysTax',
-		'IsAuthorisedToApproveTimesheets',
-		'IsAuthorisedToApproveLeave',
-		'HasHELPDebt',
-		'AustralianResidentForTaxPurposes',
-		'TaxFreeThresholdClaimed',
-		'HasSFSSDebt',
-		'EligibleToReceiveLeaveLoading',
-		'IsExemptFromTax',
-		'IsExemptFromSuper',
-		'SentToContact',
-		'IsSubscriber',
-		'HasAttachments',
-		'ShowOnCashBasisReports',
-		'IncludeInEmails',
-		'SentToContact',
-		'CanApplyToRevenue',
-		'IsReconciled',
-		'EnablePaymentsToAccount',
-		'ShowInExpenseClaims'
 	)
 	OPERATOR_MAPPINGS = {
 		'gt': '>',
@@ -110,15 +72,7 @@ class ProjectsManager(object):
 
 		if isinstance(result, dict) and self.singular in result:
 			return result[self.singular]
-
-	def _parse_api_response(self, response, resource_name):
-		data = json.loads(response.text, object_hook=json_load_object_hook)
-		#assert data['Status'] == 'OK', "Expected the API to say OK but received %s" % data['Status']
-		try:
-			return data[resource_name]
-		except KeyError:
-			return data	
-					
+			
 	def _get_data(self, func):
 		""" This is the decorator for our DECORATED_METHODS.
 		Each of the decorated methods must return:
@@ -145,10 +99,12 @@ class ProjectsManager(object):
 					uri, data=body, headers=headers, auth=self.credentials.oauth,
 					params=params, timeout=timeout)
 
-			if response.status_code == 200:
-				if not response.headers['content-type'].startswith('application/json'):
-					return response.content				
-				return self._parse_api_response(response, self.name)
+			if response.status_code == 200 or response.status_code == 201:
+				if response.headers['content-type'].startswith('application/json'):
+					return response.json()
+				else:
+					# return a byte string without doing any Unicode conversions
+					return response.content
 
 			elif response.status_code == 204:
 				return response.content
@@ -208,6 +164,10 @@ class ProjectsManager(object):
 
 	def _add_time(self, data, id):
 		uri = '/'.join([self.base_url, self.name, id, 'time']) + '/'
+		return uri, {}, 'post', data, None, False
+		
+	def _add_task(self, data, id):
+		uri = '/'.join([self.base_url, self.name, id, 'task']) + '/'
 		return uri, {}, 'post', data, None, False
 
 	def _create(self, data):
