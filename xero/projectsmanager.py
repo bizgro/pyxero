@@ -164,7 +164,7 @@ class ProjectsManager(object):
 
 	def _add_time(self, data, id):
 		uri = '/'.join([self.base_url, self.name, id, 'time']) + '/'
-		return uri, {}, 'post', data, None, False
+		return uri, {}, 'post', json.dumps(data), {'Content-Type':'application/json'}, False
 		
 	def _add_task(self, data, id):
 		uri = '/'.join([self.base_url, self.name, id, 'tasks']) + '/'
