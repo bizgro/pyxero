@@ -168,7 +168,7 @@ class ProjectsManager(object):
 		
 	def _add_task(self, data, id):
 		uri = '/'.join([self.base_url, self.name, id, 'tasks']) + '/'
-		return uri, {}, 'post', data, None, False
+		return uri, {}, 'post', json.dumps(data), {'Content-Type':'application/json'}, False
 
 	def _create(self, data):
 		return self.create_or_save(data, method='post')

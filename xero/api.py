@@ -94,7 +94,7 @@ class Projects(object):
 	"""An ORM-like interface to the Xero Projects API"""
 
 	OBJECT_LIST = (
-		"Projects",
+		"projects",
 		"ProjectsUsers",
 		"Tasks",
 		"Time",
