@@ -26,6 +26,7 @@ class ProjectsManager(object):
 		'delete',
 		'add_time',
 		'add_task',
+		'get_task',
 		'get_tasks',
 		'get_content',
 		)
@@ -145,9 +146,13 @@ class ProjectsManager(object):
 	def _get(self, id, headers=None):
 		uri = '/'.join([self.base_url, self.name, id])
 		return uri, {}, 'get', None, headers, True
-
+	
+	def _get_task(self, pid, tid):
+		uri = '/'.join([self.base_url, self.name, pid, 'tasks', tid]) + '/'
+		return uri, {}, 'get', None, None, False
+		
 	def _get_tasks(self, id):
-		uri = '/'.join([self.base_url, self.name, id, 'Tasks']) + '/'
+		uri = '/'.join([self.base_url, self.name, id, 'tasks']) + '/'
 		return uri, {}, 'get', None, None, False
 
 	def create_or_save(self, data, method='post', headers=None, summarize_errors=True):
